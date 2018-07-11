@@ -7,7 +7,7 @@ This builder plugin creates new images in Tencent Cloud by provisioning a new in
 This is assuming you have your `$GOPATH` set properly, or are okay with what modern versions of Go determine it should be by default.
 
 ```
-go get github.ol.epicgames.net/evan-kinney/packer-builder-tencloud
+go get github.com/3van/packer-builder-tencloud
 cp $GOPATH/bin/packer-builder-tencloud /path/to/your/packer
 ```
 
