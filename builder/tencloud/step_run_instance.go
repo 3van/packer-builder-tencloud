@@ -174,7 +174,6 @@ func (step *StepRunInstance) Cleanup(state multistep.StateBag) {
 					ui.Error(fmt.Sprintf("could not disassociate key from instance: %s", err))
 					return false, nil
 				} else {
-					state.Put("keyID", "")
 					return true, nil
 				}
 			})

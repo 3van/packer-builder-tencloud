@@ -78,7 +78,6 @@ func (step *StepStopInstance) Run(ctx context.Context, state multistep.StateBag)
 					ui.Error(fmt.Sprintf("could not disassociate key: %s", err))
 					return false, nil
 				} else {
-					state.Put("keyID", "")
 					return true, nil
 				}
 			})
