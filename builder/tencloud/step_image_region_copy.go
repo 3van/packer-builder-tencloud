@@ -25,6 +25,7 @@ func (step *StepImageRegionCopy) Run(ctx context.Context, state multistep.StateB
 	syncRegions := make([]string, 0, len(step.Regions))
 
 	if len(step.Regions) <= 0 {
+		ui.Message("no regions to copy image to")
 		return multistep.ActionContinue
 	}
 
@@ -38,6 +39,11 @@ func (step *StepImageRegionCopy) Run(ctx context.Context, state multistep.StateB
 
 		ui.Message(fmt.Sprintf("adding region '%s' to copy list", region))
 		syncRegions = append(syncRegions, region)
+	}
+
+	if len(syncRegions) <= 0 {
+		ui.Message("no additional regions to copy image to")
+		return multistep.ActionContinue
 	}
 
 	err := tc.SyncImages(&tcapi.SyncImagesRequest{
