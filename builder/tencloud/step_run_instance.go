@@ -158,7 +158,7 @@ func (step *StepRunInstance) Cleanup(state multistep.StateBag) {
 
 	if tempKeyID, ok := state.GetOk("keyID"); ok {
 		keyID := tempKeyID.(string)
-		if keyID != "" {
+		if keyID != "" && step.instanceId != "" {
 			err := retry.Retry(0.2, 30, 11, func(_ uint) (bool, error) {
 				ui.Say(fmt.Sprintf("disassociating key '%s' from instance '%s' before termination", keyID, step.instanceId))
 				err := tc.DisassociateInstancesKeyPairs(&tcapi.DisassociateInstancesKeyPairsRequest{
@@ -198,20 +198,19 @@ func (step *StepRunInstance) Cleanup(state multistep.StateBag) {
 			ui.Error(fmt.Sprintf("could not terminate instance: %s", err))
 			return
 		}
+
+		ui.Say(fmt.Sprintf("waiting for instance '%s' to cease existence...", step.instanceId))
+
+		stateChange := StateChangeConf{
+			Pending:   []string{"TERMINATING"},
+			Target:    "TERMINATED",
+			Refresh:   InstanceStateRefreshFunc(tc, step.instanceId),
+			StepState: state,
+		}
+
+		if _, err := WaitForDoesNotExist(&stateChange); err != nil {
+			ui.Error(fmt.Sprintf("error waiting for instance '%s' to cease existence: %s", step.instanceId, err))
+		}
 	}
-
-	ui.Say(fmt.Sprintf("waiting for instance '%s' to cease existence...", step.instanceId))
-
-	stateChange := StateChangeConf{
-		Pending:   []string{"TERMINATING"},
-		Target:    "TERMINATED",
-		Refresh:   InstanceStateRefreshFunc(tc, step.instanceId),
-		StepState: state,
-	}
-
-	if _, err := WaitForDoesNotExist(&stateChange); err != nil {
-		ui.Error(fmt.Sprintf("error waiting for instance '%s' to cease existence: %s", step.instanceId, err))
-	}
-
 	return
 }
