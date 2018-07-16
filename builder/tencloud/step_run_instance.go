@@ -71,6 +71,17 @@ func (step *StepRunInstance) Run(ctx context.Context, state multistep.StateBag) 
 	step.instanceName = strings.Replace(step.instanceName, "-", "", -1)
 	step.instanceName = step.instanceName[:24]
 
+	intDiskSize, err := strconv.Atoi(step.SystemDiskSize)
+	if err != nil {
+		state.Put("error", fmt.Errorf("could not convert system_disk_size to int: %s", err))
+		return multistep.ActionHalt
+	}
+	intMaxBandwidth, err := strconv.Atoi(step.InternetMaxBandwidthOut)
+	if err != nil {
+		state.Put("error", fmt.Errorf("could not convert internet_max_bandwidth_out to int: %s", err))
+		return multistep.ActionHalt
+	}
+
 	req := &tcapi.RunInstancesRequest{
 		Placement: tcapi.Placement{
 			Zone:      step.AvailabilityZone,
@@ -81,7 +92,7 @@ func (step *StepRunInstance) Run(ctx context.Context, state multistep.StateBag) 
 		InstanceType:       step.InstanceType,
 		SystemDisk: tcapi.SystemDisk{
 			DiskType: step.SystemDiskType,
-			DiskSize: strconv.Atoi(step.SystemDiskSize),
+			DiskSize: intDiskSize,
 		},
 		VirtualPrivateCloud: tcapi.VirtualPrivateCloud{
 			VpcId:    step.VpcId,
@@ -89,7 +100,7 @@ func (step *StepRunInstance) Run(ctx context.Context, state multistep.StateBag) 
 		},
 		InternetAccessible: tcapi.InternetAccessible{
 			InternetChargeType:      step.InternetChargeType,
-			InternetMaxBandwidthOut: strconv.Atoi(step.InternetMaxBandwidthOut),
+			InternetMaxBandwidthOut: intMaxBandwidth,
 			PublicIpAssigned:        strconv.FormatBool(step.PublicIpAssigned),
 		},
 		InstanceCount: 1,
