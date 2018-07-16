@@ -145,8 +145,8 @@ func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
 		errs = append(errs, fmt.Errorf("subnet_id must be specified"))
 	}
 	subnets = strings.Split(c.SubnetId, ",")
-	rand.Seed.(time.Now().Unix())
+	rand.Seed(time.Now().Unix())
 	c.SubnetId = subnets[rand.Intn(len(subnets))]
-	
+
 	return errs
 }
