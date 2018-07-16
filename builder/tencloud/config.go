@@ -7,8 +7,10 @@ import (
 	"github.com/hashicorp/packer/common/uuid"
 	"github.com/hashicorp/packer/helper/communicator"
 	"github.com/hashicorp/packer/template/interpolate"
+	"math/rand"
 	"os"
 	"strings"
+	"time"
 )
 
 // authentication configuration
@@ -106,10 +108,10 @@ type RunConfig struct {
 	UserDataFile            string   `mapstructure:"user_data_file"`
 	TemporaryKeyPairName    string   `mapstructure:"temporary_key_pair_name"`
 	DisableStopInstance     bool     `mapstructure:"disable_stop_instance"`
-	SSHKeyPairName string              `mapstructure:"ssh_keypair_name"`
-	SSHInterface   string              `mapstructure:"ssh_interface"`
+	SSHKeyPairName          string   `mapstructure:"ssh_keypair_name"`
+	SSHInterface            string   `mapstructure:"ssh_interface"`
 
-	Comm           communicator.Config `mapstructure:",squash"`
+	Comm communicator.Config `mapstructure:",squash"`
 }
 
 func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
@@ -139,5 +141,12 @@ func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
 		}
 	}
 
+	if c.SubnetId == "" {
+		errs = append(errs, fmt.Errorf("subnet_id must be specified"))
+	}
+	subnets = strings.Split(c.SubnetId, ",")
+	rand.Seed.(time.Now().Unix())
+	c.SubnetId = subnets[rand.Intn(len(subnets))]
+	
 	return errs
 }
