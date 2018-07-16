@@ -97,11 +97,11 @@ type RunConfig struct {
 	InstanceType            string   `mapstructure:"instance_type"`
 	InstanceChargeType      string   `mapstructure:"instance_charge_type"`
 	SystemDiskType          string   `mapstructure:"system_disk_type"`
-	SystemDiskSize          int      `mapstructure:"system_disk_size"`
+	SystemDiskSize          string   `mapstructure:"system_disk_size"`
 	VpcId                   string   `mapstructure:"vpc_id"`
 	SubnetId                string   `mapstructure:"subnet_id"`
 	InternetChargeType      string   `mapstructure:"internet_charge_type"`
-	InternetMaxBandwidthOut int      `mapstructure:"internet_max_bandwidth_out"`
+	InternetMaxBandwidthOut string   `mapstructure:"internet_max_bandwidth_out"`
 	PublicIpAssigned        bool     `mapstructure:"public_ip_assigned"`
 	SecurityGroupIds        []string `mapstructure:"security_group_ids"`
 	UserData                string   `mapstructure:"user_data"`

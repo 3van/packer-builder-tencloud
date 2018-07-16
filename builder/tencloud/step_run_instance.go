@@ -23,11 +23,11 @@ type StepRunInstance struct {
 	InstanceType            string   `mapstructure:"instance_type"`
 	InstanceChargeType      string   `mapstructure:"instance_charge_type"`
 	SystemDiskType          string   `mapstructure:"system_disk_type"`
-	SystemDiskSize          int      `mapstructure:"system_disk_size"`
+	SystemDiskSize          string   `mapstructure:"system_disk_size"`
 	VpcId                   string   `mapstructure:"vpc_id"`
 	SubnetId                string   `mapstructure:"subnet_id"`
 	InternetChargeType      string   `mapstructure:"internet_charge_type"`
-	InternetMaxBandwidthOut int      `mapstructure:"internet_max_bandwidth_out"`
+	InternetMaxBandwidthOut string   `mapstructure:"internet_max_bandwidth_out"`
 	PublicIpAssigned        bool     `mapstructure:"public_ip_assigned"`
 	SecurityGroupIds        []string `mapstructure:"security_group_ids"`
 	UserData                string   `mapstructure:"user_data"`
@@ -81,7 +81,7 @@ func (step *StepRunInstance) Run(ctx context.Context, state multistep.StateBag) 
 		InstanceType:       step.InstanceType,
 		SystemDisk: tcapi.SystemDisk{
 			DiskType: step.SystemDiskType,
-			DiskSize: step.SystemDiskSize,
+			DiskSize: strconv.Atoi(step.SystemDiskSize),
 		},
 		VirtualPrivateCloud: tcapi.VirtualPrivateCloud{
 			VpcId:    step.VpcId,
@@ -89,7 +89,7 @@ func (step *StepRunInstance) Run(ctx context.Context, state multistep.StateBag) 
 		},
 		InternetAccessible: tcapi.InternetAccessible{
 			InternetChargeType:      step.InternetChargeType,
-			InternetMaxBandwidthOut: step.InternetMaxBandwidthOut,
+			InternetMaxBandwidthOut: strconv.Atoi(step.InternetMaxBandwidthOut),
 			PublicIpAssigned:        strconv.FormatBool(step.PublicIpAssigned),
 		},
 		InstanceCount: 1,
