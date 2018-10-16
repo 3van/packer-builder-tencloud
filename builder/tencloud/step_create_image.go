@@ -21,22 +21,28 @@ func (step *StepCreateImage) Run(ctx context.Context, state multistep.StateBag) 
 	instance := state.Get("instance").(tcapi.Instance)
 	ui := state.Get("ui").(packer.Ui)
 
+	imageDesc := config.ImageDescription
+	if config.ImageDescTags.IsSet() {
+		imageDesc = config.ImageDescTags.Flatten(config.ImageDescTagsDelim)
+	}
+
 	// oh cool i guess we'll do a retry loop here too because that's fun 😥
 	created := false
 	err := retry.Retry(0.2, 30, 11, func(_ uint) (bool, error) {
 		ui.Say(fmt.Sprintf("creating image '%s'", config.ImageName))
 		req := &tcapi.CreateImageRequest{
-			InstanceId: instance.InstanceId,
-			ImageName:  config.ImageName,
+			InstanceId:       instance.InstanceId,
+			ImageName:        config.ImageName,
+			ImageDescription: imageDesc,
 		}
-		err := tc.CreateImage(req)
-		if err != nil {
-			ui.Error(fmt.Sprintf("error creating image: %s", err))
+
+		if err := tc.CreateImage(req); err != nil {
+			ui.Error(fmt.Sprintf("error creating image: %v", err))
 			return false, nil
-		} else {
-			created = true
-			return true, nil
 		}
+
+		created = true
+		return true, nil
 	})
 	if !created || err != nil {
 		state.Put("error", fmt.Errorf("error creating image: %s", err))

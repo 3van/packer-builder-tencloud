@@ -66,13 +66,13 @@ func (step *StepImageRegionCopy) Run(ctx context.Context, state multistep.StateB
 
 		req := &tcapi.DescribeImagesRequest{
 			Filters: []tcapi.Filter{
-				tcapi.Filter{
+				{
 					Name: "image-type",
 					Values: []string{
 						"PRIVATE_IMAGE",
 					},
 				},
-				tcapi.Filter{
+				{
 					Name: "image-name",
 					Values: []string{
 						step.Name,

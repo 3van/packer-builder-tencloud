@@ -47,21 +47,34 @@ func (step *StepKeyPair) Run(ctx context.Context, state multistep.StateBag) mult
 	tc := state.Get("tc").(*tcapi.Client)
 	config := state.Get("config").(Config)
 
-	ui.Say(fmt.Sprintf("creating temporary keypair '%s'", step.TemporaryKeyPairName))
-	resp, err := tc.CreateKeyPair(&tcapi.CreateKeyPairRequest{
-		KeyName:   step.TemporaryKeyPairName,
-		ProjectId: config.Project,
+	created := false
+	var keyID, privateKey string
+	err := retry.Retry(0.2, 30, 11, func(_ uint) (bool, error) {
+		ui.Say(fmt.Sprintf("creating temporary keypair '%s'", step.TemporaryKeyPairName))
+		resp, err := tc.CreateKeyPair(&tcapi.CreateKeyPairRequest{
+			KeyName:   step.TemporaryKeyPairName,
+			ProjectId: config.Project,
+		})
+		if err != nil {
+			ui.Error(fmt.Sprintf("error creating temporary key pair: %s", err))
+			return false, nil
+		}
+		created = true
+		keyID = resp.KeyPair.KeyId
+		privateKey = resp.KeyPair.PrivateKey
+		return true, nil
 	})
-	if err != nil {
-		state.Put("error", fmt.Errorf("could not create temporary keypair: %s", err))
+
+	if !created || err != nil {
+		state.Put("error", fmt.Errorf("error creating temporary key pair: %s", err))
 		return multistep.ActionHalt
 	}
 
 	step.doCleanup = true
 
 	state.Put("keyPair", step.TemporaryKeyPairName)
-	state.Put("privateKey", resp.KeyPair.PrivateKey)
-	state.Put("keyID", resp.KeyPair.KeyId)
+	state.Put("privateKey", privateKey)
+	state.Put("keyID", keyID)
 
 	if step.Debug {
 		ui.Message(fmt.Sprintf("saving private key for '%s' to '%s'", step.TemporaryKeyPairName, step.DebugKeyPath))
@@ -72,7 +85,7 @@ func (step *StepKeyPair) Run(ctx context.Context, state multistep.StateBag) mult
 		}
 		defer fh.Close()
 
-		if _, err := fh.Write([]byte(resp.KeyPair.PrivateKey)); err != nil {
+		if _, err := fh.Write([]byte(privateKey)); err != nil {
 			state.Put("error", fmt.Errorf("could not write private key to disk: %s", err))
 			return multistep.ActionHalt
 		}

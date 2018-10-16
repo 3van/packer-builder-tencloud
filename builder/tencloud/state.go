@@ -42,13 +42,13 @@ func ImageExistsRefreshFunc(tc *tcapi.Client, imageName string) StateRefreshFunc
 	return func() (interface{}, string, error) {
 		req := &tcapi.DescribeImagesRequest{
 			Filters: []tcapi.Filter{
-				tcapi.Filter{
+				{
 					Name: "image-type",
 					Values: []string{
 						"PRIVATE_IMAGE",
 					},
 				},
-				tcapi.Filter{
+				{
 					Name: "image-name",
 					Values: []string{
 						imageName,

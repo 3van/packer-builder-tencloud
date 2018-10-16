@@ -30,13 +30,13 @@ func (step *StepDeregisterImage) Run(ctx context.Context, state multistep.StateB
 		thisClient := tc.Copy(region, nil)
 		req := &tcapi.DescribeImagesRequest{
 			Filters: []tcapi.Filter{
-				tcapi.Filter{
+				{
 					Name: "image-type",
 					Values: []string{
 						"PRIVATE_IMAGE",
 					},
 				},
-				tcapi.Filter{
+				{
 					Name: "image-name",
 					Values: []string{
 						step.ImageName,
