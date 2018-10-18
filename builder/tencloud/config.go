@@ -3,14 +3,17 @@ package tencloud
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
+	"net"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/3van/tencloud-go"
 	"github.com/hashicorp/packer/common/uuid"
 	"github.com/hashicorp/packer/helper/communicator"
 	"github.com/hashicorp/packer/template/interpolate"
-	"math/rand"
-	"os"
-	"strings"
-	"time"
 )
 
 // authentication configuration
@@ -28,7 +31,18 @@ func (c *AuthConfig) Client() (*tcapi.Client, error) {
 		return c.client, nil
 	}
 
-	c.client = tcapi.New(c.KeyID, c.Key, c.Region, nil)
+	trans := &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: 20 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 20 * time.Second,
+	}
+	httpClient := &http.Client{
+		Timeout:   time.Second * 30,
+		Transport: trans,
+	}
+
+	c.client = tcapi.New(c.KeyID, c.Key, c.Region, httpClient)
 
 	return c.client, nil
 }
@@ -45,11 +59,13 @@ func (c *AuthConfig) Prepare(ctx *interpolate.Context) []error {
 
 // image configuration
 type ImageConfig struct {
-	ImageName        string   `mapstructure:"image_name"`
-	ImageDescription string   `mapstructure:"image_description"`
-	ImageRegions     []string `mapstructure:"image_regions"`
-	ForceDeregister  bool     `mapstructure:"force_deregister"`
-	CleanImageName   bool     `mapstructure:"clean_image_name"`
+	ImageName          string   `mapstructure:"image_name"`
+	ImageDescription   string   `mapstructure:"image_description"`
+	ImageDescTags      TagMap   `mapstructure:"tags"`
+	ImageDescTagsDelim string   `mapstructure:"tag_delimiter"`
+	ImageRegions       []string `mapstructure:"image_regions"`
+	ForceDeregister    bool     `mapstructure:"force_deregister"`
+	CleanImageName     bool     `mapstructure:"clean_image_name"`
 }
 
 func (c *ImageConfig) Prepare(ctx *interpolate.Context) []error {
@@ -64,6 +80,23 @@ func (c *ImageConfig) Prepare(ctx *interpolate.Context) []error {
 		errs = append(errs, fmt.Errorf("image_name can only contain alphanumerics and dashes"))
 	} else {
 		c.ImageName = cleanImageName(c.ImageName)
+	}
+	// default delimiter for description tags to ":"
+	if c.ImageDescTagsDelim == "" {
+		c.ImageDescTagsDelim = ":"
+	}
+
+	// Verify that description and imagedesctags aren't both set
+	if c.ImageDescTags.IsSet() && c.ImageDescription != "" {
+		errs = append(errs, fmt.Errorf("cannot set image_description and tags simultaneously"))
+	}
+
+	if c.ImageDescTags.IsSet() {
+		tags := c.ImageDescTags.Flatten(c.ImageDescTagsDelim)
+		tagLen := len(tags)
+		if tagLen >= 60 {
+			errs = append(errs, fmt.Errorf("description tags cannot exceed 60 characters in total, got (%d): %q", tagLen, tags))
+		}
 	}
 
 	return errs
@@ -92,24 +125,25 @@ func isAlphaNum(b byte) bool {
 
 // instance run configuration
 type RunConfig struct {
-	AvailabilityZone        string   `mapstructure:"availability_zone"`
-	SourceImageId           string   `mapstructure:"source_image_id"`
-	InstanceType            string   `mapstructure:"instance_type"`
-	InstanceChargeType      string   `mapstructure:"instance_charge_type"`
-	SystemDiskType          string   `mapstructure:"system_disk_type"`
-	SystemDiskSize          string   `mapstructure:"system_disk_size"`
-	VpcId                   string   `mapstructure:"vpc_id"`
-	SubnetId                string   `mapstructure:"subnet_id"`
-	InternetChargeType      string   `mapstructure:"internet_charge_type"`
-	InternetMaxBandwidthOut string   `mapstructure:"internet_max_bandwidth_out"`
-	PublicIpAssigned        bool     `mapstructure:"public_ip_assigned"`
-	SecurityGroupIds        []string `mapstructure:"security_group_ids"`
-	UserData                string   `mapstructure:"user_data"`
-	UserDataFile            string   `mapstructure:"user_data_file"`
-	TemporaryKeyPairName    string   `mapstructure:"temporary_key_pair_name"`
-	DisableStopInstance     bool     `mapstructure:"disable_stop_instance"`
-	SSHKeyPairName          string   `mapstructure:"ssh_keypair_name"`
-	SSHInterface            string   `mapstructure:"ssh_interface"`
+	AvailabilityZone        string           `mapstructure:"availability_zone"`
+	SourceImageId           string           `mapstructure:"source_image_id"`
+	SourceImageFilter       TagFilterOptions `mapstructure:"source_image_filters"`
+	InstanceType            string           `mapstructure:"instance_type"`
+	InstanceChargeType      string           `mapstructure:"instance_charge_type"`
+	SystemDiskType          string           `mapstructure:"system_disk_type"`
+	SystemDiskSize          string           `mapstructure:"system_disk_size"`
+	VpcId                   string           `mapstructure:"vpc_id"`
+	SubnetId                string           `mapstructure:"subnet_id"`
+	InternetChargeType      string           `mapstructure:"internet_charge_type"`
+	InternetMaxBandwidthOut string           `mapstructure:"internet_max_bandwidth_out"`
+	PublicIpAssigned        bool             `mapstructure:"public_ip_assigned"`
+	SecurityGroupIds        []string         `mapstructure:"security_group_ids"`
+	UserData                string           `mapstructure:"user_data"`
+	UserDataFile            string           `mapstructure:"user_data_file"`
+	TemporaryKeyPairName    string           `mapstructure:"temporary_key_pair_name"`
+	DisableStopInstance     bool             `mapstructure:"disable_stop_instance"`
+	SSHKeyPairName          string           `mapstructure:"ssh_keypair_name"`
+	SSHInterface            string           `mapstructure:"ssh_interface"`
 
 	Comm communicator.Config `mapstructure:",squash"`
 }
@@ -125,8 +159,19 @@ func (c *RunConfig) Prepare(ctx *interpolate.Context) []error {
 		c.TemporaryKeyPairName = keyName[:24]
 	}
 
-	if c.SourceImageId == "" {
-		errs = append(errs, fmt.Errorf("source_image_id must be specified"))
+	if c.SourceImageId == "" && c.SourceImageFilter.Empty() {
+		errs = append(errs, fmt.Errorf(
+			"one of 'source_image_id' or 'source_image_filters' must be specified"))
+	}
+
+	if c.SourceImageId != "" && !c.SourceImageFilter.Empty() {
+		errs = append(errs, fmt.Errorf(
+			"Only one of 'source_image_id' or 'source_image_desc_filters' may be specified"))
+	}
+
+	// Default image description delimeter if not set, and we're filtering on images
+	if !c.SourceImageFilter.Empty() && !c.SourceImageFilter.IsDelimSet() {
+		c.SourceImageFilter.TagFilterDelim = ":"
 	}
 
 	if c.InstanceType == "" {

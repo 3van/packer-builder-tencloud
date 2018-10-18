@@ -72,7 +72,8 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			ForceDeregister: b.config.ForceDeregister,
 		},
 		&StepSourceImageInfo{
-			SourceImage: b.config.SourceImageId,
+			SourceImage:       b.config.SourceImageId,
+			SourceImageFilter: b.config.SourceImageFilter,
 		},
 		&StepKeyPair{
 			Debug:                b.config.PackerDebug,
@@ -84,6 +85,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 		&StepRunInstance{
 			AvailabilityZone:        b.config.AvailabilityZone,
 			SourceImageId:           b.config.SourceImageId,
+			SourceImageFilter:       b.config.SourceImageFilter,
 			InstanceType:            b.config.InstanceType,
 			InstanceChargeType:      b.config.InstanceChargeType,
 			SystemDiskType:          b.config.SystemDiskType,

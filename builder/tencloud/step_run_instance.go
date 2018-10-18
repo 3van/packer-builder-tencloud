@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/3van/tencloud-go"
-
 	retry "github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/common/uuid"
 	"github.com/hashicorp/packer/helper/multistep"
@@ -18,20 +17,21 @@ import (
 )
 
 type StepRunInstance struct {
-	AvailabilityZone        string   `mapstructure:"availability_zone"`
-	SourceImageId           string   `mapstructure:"source_image_id"`
-	InstanceType            string   `mapstructure:"instance_type"`
-	InstanceChargeType      string   `mapstructure:"instance_charge_type"`
-	SystemDiskType          string   `mapstructure:"system_disk_type"`
-	SystemDiskSize          string   `mapstructure:"system_disk_size"`
-	VpcId                   string   `mapstructure:"vpc_id"`
-	SubnetId                string   `mapstructure:"subnet_id"`
-	InternetChargeType      string   `mapstructure:"internet_charge_type"`
-	InternetMaxBandwidthOut string   `mapstructure:"internet_max_bandwidth_out"`
-	PublicIpAssigned        bool     `mapstructure:"public_ip_assigned"`
-	SecurityGroupIds        []string `mapstructure:"security_group_ids"`
-	UserData                string   `mapstructure:"user_data"`
-	UserDataFile            string   `mapstructure:"user_data_file"`
+	AvailabilityZone        string           `mapstructure:"availability_zone"`
+	SourceImageId           string           `mapstructure:"source_image_id"`
+	SourceImageFilter       TagFilterOptions `mapstructure:"source_image_filter"`
+	InstanceType            string           `mapstructure:"instance_type"`
+	InstanceChargeType      string           `mapstructure:"instance_charge_type"`
+	SystemDiskType          string           `mapstructure:"system_disk_type"`
+	SystemDiskSize          string           `mapstructure:"system_disk_size"`
+	VpcId                   string           `mapstructure:"vpc_id"`
+	SubnetId                string           `mapstructure:"subnet_id"`
+	InternetChargeType      string           `mapstructure:"internet_charge_type"`
+	InternetMaxBandwidthOut string           `mapstructure:"internet_max_bandwidth_out"`
+	PublicIpAssigned        bool             `mapstructure:"public_ip_assigned"`
+	SecurityGroupIds        []string         `mapstructure:"security_group_ids"`
+	UserData                string           `mapstructure:"user_data"`
+	UserDataFile            string           `mapstructure:"user_data_file"`
 
 	instanceId   string
 	instanceName string
@@ -41,10 +41,17 @@ func (step *StepRunInstance) Run(ctx context.Context, state multistep.StateBag) 
 	tc := state.Get("tc").(*tcapi.Client)
 	ui := state.Get("ui").(packer.Ui)
 	config := state.Get("config").(Config)
-	var keyId string
-	if tempId, ok := state.GetOk("keyID"); ok {
-		keyId = tempId.(string)
+	var keyID string
+	if tempID, ok := state.GetOk("keyID"); ok {
+		keyID = tempID.(string)
 	}
+
+	image, ok := state.Get("source_image").(tcapi.Image)
+	if !ok {
+		state.Put("error", fmt.Errorf("source_image failed type assert"))
+		return multistep.ActionHalt
+	}
+	imageID := image.ImageId
 
 	userData := step.UserData
 	if step.UserDataFile != "" {
@@ -61,12 +68,6 @@ func (step *StepRunInstance) Run(ctx context.Context, state multistep.StateBag) 
 	}
 
 	ui.Say("launching source instance")
-	image, ok := state.Get("source_image").(tcapi.Image)
-	if !ok {
-		state.Put("error", fmt.Errorf("source_image failed type assert"))
-		return multistep.ActionHalt
-	}
-	step.SourceImageId = image.ImageId
 	step.instanceName = fmt.Sprintf("packer_%s", uuid.TimeOrderedUUID())
 	step.instanceName = strings.Replace(step.instanceName, "-", "", -1)
 	step.instanceName = step.instanceName[:24]
@@ -87,7 +88,7 @@ func (step *StepRunInstance) Run(ctx context.Context, state multistep.StateBag) 
 			Zone:      step.AvailabilityZone,
 			ProjectId: config.Project,
 		},
-		ImageId:            image.ImageId,
+		ImageId:            imageID,
 		InstanceChargeType: step.InstanceChargeType,
 		InstanceType:       step.InstanceType,
 		SystemDisk: tcapi.SystemDisk{
@@ -107,7 +108,7 @@ func (step *StepRunInstance) Run(ctx context.Context, state multistep.StateBag) 
 		InstanceName:  step.instanceName,
 		LoginSettings: tcapi.LoginSettings{
 			KeyIds: []string{
-				keyId,
+				keyID,
 			},
 		},
 		SecurityGroupIds: step.SecurityGroupIds,
@@ -184,9 +185,8 @@ func (step *StepRunInstance) Cleanup(state multistep.StateBag) {
 				if err != nil {
 					ui.Error(fmt.Sprintf("could not disassociate key from instance: %s", err))
 					return false, nil
-				} else {
-					return true, nil
 				}
+				return true, nil
 			})
 			if err != nil {
 				ui.Error(fmt.Sprintf("could not disassociate key: %s", err))
@@ -200,9 +200,8 @@ func (step *StepRunInstance) Cleanup(state multistep.StateBag) {
 			err := tc.TerminateInstances(&tcapi.TerminateInstancesRequest{InstanceIds: []string{step.instanceId}})
 			if err == nil {
 				return true, nil
-			} else {
-				return false, nil
 			}
+			return false, nil
 		})
 
 		if err != nil {
