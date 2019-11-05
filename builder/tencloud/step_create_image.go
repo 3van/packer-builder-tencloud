@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/3van/tencloud-go"
+	tcapi "github.com/3van/tencloud-go"
 
 	retry "github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/multistep"
@@ -50,7 +50,7 @@ func (step *StepCreateImage) Run(ctx context.Context, state multistep.StateBag) 
 	}
 
 	stateChange := StateChangeConf{
-		Pending:   []string{"SYNCING", "PENDING"},
+		Pending:   []string{"SYNCING", "PENDING", "CREATING"},
 		Target:    "NORMAL",
 		Refresh:   ImageExistsRefreshFunc(tc, config.ImageName),
 		StepState: state,
@@ -69,12 +69,13 @@ func (step *StepCreateImage) Run(ctx context.Context, state multistep.StateBag) 
 
 	ui.Say("waiting for image to become ready")
 	stateChange = StateChangeConf{
-		Pending:   []string{"SYNCING", "PENDING"},
+		Pending:   []string{"SYNCING", "PENDING", "CREATING"},
 		Target:    "NORMAL",
 		Refresh:   ImageStateRefreshFunc(tc, imageInst.ImageId),
 		StepState: state,
 	}
 	if _, err := WaitForState(&stateChange); err != nil {
+		ui.Say(fmt.Sprintf("failed to wait for image: %v", err))
 		state.Put("error", fmt.Errorf("error waiting for image: %s", err))
 		return multistep.ActionHalt
 	}
